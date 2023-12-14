@@ -1,0 +1,119 @@
+from qiskit import *
+import numpy as np
+from qiskit.visualization import plot_histogram
+
+
+wining_condintions = [[0,1], [0,2], [1, 3], [2, 3]]
+conds_num = len(wining_condintions)
+shotsnum = 1000*1000
+
+def main():
+    value = QuantumRegister(conds_num, 'values')
+    ancilla = QuantumRegister(conds_num, 'ancilla')
+    check = QuantumRegister(1, 'check')
+    cb = ClassicalRegister(conds_num, 'Cb')
+    
+    qc = QuantumCircuit(value, ancilla, check, cb)
+    
+    Qnum = len(value) + len(ancilla) + len(check)
+    
+    orac = oracle(value, ancilla, check)
+    opra = oprator()
+    
+    qc.h(value[:])
+    
+    qc.x(check)
+    qc.h(check)
+    
+    qc.barrier()
+    
+    for i in range(int(conds_num / 2)):
+        qc.append(orac, range(Qnum))
+        qc.barrier()
+        qc.append(opra, range(conds_num))
+    
+    qc.barrier()
+    
+    qc.measure(value[:], cb[:])
+    
+    
+    
+    job = execute(qc, Aer.get_backend('qasm_simulator'), shots=shotsnum)
+    output = job.result().get_counts()
+    qc.draw('mpl')
+    plot_histogram(output)
+    
+    print_grids(output)
+        
+def oracle(value, ancilla, check):
+    qc = QuantumCircuit(value, ancilla, check, name='Oracle')
+    
+    
+    j = -1
+    for cond in wining_condintions:
+      j += 1
+      qc.cx(value[cond[0]], ancilla[j])
+      qc.cx(value[cond[1]], ancilla[j])
+            
+    qc.mcx(ancilla[:], check)
+       
+    j = -1
+    for cond in wining_condintions:
+      j += 1
+      qc.cx(value[cond[0]], ancilla[j])
+      qc.cx(value[cond[1]], ancilla[j])
+      
+    qc.draw('mpl')
+      
+    return qc.to_instruction()
+
+
+def oprator():
+    qc = QuantumCircuit(conds_num, name='Oprator')
+    
+    qc.h(range(conds_num))
+    qc.x(range(conds_num))
+    
+    qc.barrier()
+    
+    qc.h(conds_num - 1)
+    qc.mcx(list(range(conds_num - 1)), conds_num - 1)
+    qc.h(conds_num - 1)
+    
+    qc.barrier()
+    
+    
+    qc.x(range(conds_num))
+    qc.h(range(conds_num))
+    
+    qc.draw('mpl')
+    
+    
+    return qc.to_instruction()
+
+
+def print_grids(output):
+    index = []
+    shotsnum1 = int(shotsnum / 4)
+
+    for key, v in output.items():
+        if v > shotsnum1:
+            index.append(key)
+
+    for string in index:
+        print()
+        grid = np.array(list(map(int, string))).reshape((2, 2))
+        n = len(grid)
+        
+        for i in range(n):
+            print(' --- ' * n)
+            print('|', end='')
+            
+            for j in range(n):
+                print(f' {grid[i][j]} |', end='')
+                
+            print()
+            
+        print(' --- ' * n)
+        print()     
+main()
